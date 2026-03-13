@@ -1,0 +1,26 @@
+{
+  "name": "Your Name",
+  "title": "Senior Java Developer",
+  "experience_years": 7,
+  "skills": [
+    "Java", "Java EE", "Spring Boot", "Apache Struts",
+    "JSP", "MS SQL Server", "Azure DevOps", "GitHub",
+    "REST APIs", "Microservices", "CI/CD", "Maven"
+  ],
+  "preferred_roles": [
+    "Java Developer", "Senior Java Developer",
+    "Backend Developer", "Full Stack Java Developer",
+    "Software Engineer"
+  ],
+  "preferred_locations": [
+    "Bangalore", "Hyderabad", "Chennai", "Remote", "Hybrid"
+  ],
+  "preferred_work_type": ["Full-time", "Hybrid", "Remote"],
+  "salary_min_lpa": 15,
+  "industries_preferred": ["IT Services", "Product", "Fintech", "Healthcare IT"],
+  "industries_avoided": ["Gaming", "Gambling"],
+  "job_search_keywords": [
+    "Java developer", "Spring Boot developer",
+    "Java backend engineer", "Senior software engineer Java"
+  ]
+}

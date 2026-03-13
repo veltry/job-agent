@@ -1,0 +1,23 @@
+name: Deploy Job Agent to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Oracle VM via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_VM_IP }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/job-agent
+            git pull origin main
+            pip3 install -r requirements.txt --quiet
+            sudo systemctl restart jobagent
+            sudo systemctl status jobagent --no-pager
+            echo "✅ Deployment complete"
