@@ -90,7 +90,7 @@ jobs:
             sudo systemctl restart jobagent
 
             echo "⏳ Waiting for service to start..."
-            sleep 5
+            sleep 15
 
             echo "✅ Checking service status..."
             sudo systemctl is-active jobagent || exit 1
