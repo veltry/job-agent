@@ -85,6 +85,7 @@ jobs:
             echo "📦 Installing dependencies..."
             source venv/bin/activate
             pip install -r requirements.txt --quiet
+            pip install python-telegram-bot==22.6 --force-reinstall --quiet
 
             echo "🔁 Restarting service..."
             sudo systemctl restart jobagent
