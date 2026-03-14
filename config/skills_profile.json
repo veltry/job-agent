@@ -5,22 +5,25 @@
   "skills": [
     "Java", "Java EE", "Spring Boot", "Apache Struts",
     "JSP", "MS SQL Server", "Azure DevOps", "GitHub",
-    "REST APIs", "Microservices", "CI/CD", "Maven"
+    "REST APIs", "Microservices", "CI/CD", "Maven", "Git"
   ],
   "preferred_roles": [
     "Java Developer", "Senior Java Developer",
     "Backend Developer", "Full Stack Java Developer",
-    "Software Engineer"
+    "Software Engineer", "Java Backend Engineer"
   ],
   "preferred_locations": [
-    "Bangalore", "Hyderabad", "Chennai", "Remote", "Hybrid"
+    "Kuala Lumpur", "Malaysia", "Remote", "Hybrid", "Petaling Jaya"
   ],
   "preferred_work_type": ["Full-time", "Hybrid", "Remote"],
-  "salary_min_lpa": 15,
+  "salary_min_lpa": 8,
   "industries_preferred": ["IT Services", "Product", "Fintech", "Healthcare IT"],
   "industries_avoided": ["Gaming", "Gambling"],
   "job_search_keywords": [
-    "Java developer", "Spring Boot developer",
-    "Java backend engineer", "Senior software engineer Java"
+    "Java developer",
+    "Spring Boot developer",
+    "Java backend engineer",
+    "Senior software engineer Java",
+    "Java full stack developer"
   ]
 }

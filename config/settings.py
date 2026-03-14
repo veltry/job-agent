@@ -1,5 +1,5 @@
 """
-Settings - Loads all config from environment variables and skills profile.
+Settings - All configuration from environment variables.
 """
 
 import os
@@ -13,20 +13,17 @@ load_dotenv()
 class Settings:
     # ── Telegram ──────────────────────────────────────────────
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    TELEGRAM_USER_ID: int = int(os.getenv("TELEGRAM_USER_ID", "0"))  # Your personal Telegram user ID
+    TELEGRAM_USER_ID: int = int(os.getenv("TELEGRAM_USER_ID", "0"))
 
-    # ── Claude AI ─────────────────────────────────────────────
-    CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
-    CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
-
-    # ── Apify (LinkedIn Scraper) ───────────────────────────────
-    APIFY_API_KEY: str = os.getenv("APIFY_API_KEY", "")
-    APIFY_ACTOR_ID: str = "curious_coder/linkedin-jobs-search-scraper"
+    # ── Gemini AI ─────────────────────────────────────────────
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = "gemini-2.0-flash-lite"
 
     # ── Agent Behaviour ───────────────────────────────────────
-    MATCH_THRESHOLD: int = 70          # Min score (%) to notify you
-    SCAN_INTERVAL_HOURS: int = 4       # How often to scan for new jobs
-    MAX_JOBS_PER_SCAN: int = 50        # Max jobs fetched per run
+    MATCH_THRESHOLD: int = int(os.getenv("MATCH_THRESHOLD", "70"))
+    SCAN_INTERVAL_HOURS: int = int(os.getenv("SCAN_INTERVAL_HOURS", "4"))
+    MAX_JOBS_PER_SCAN: int = int(os.getenv("MAX_JOBS_PER_SCAN", "50"))
+    RATE_LIMIT_SECONDS: int = int(os.getenv("RATE_LIMIT_SECONDS", "4"))
 
     # ── Skills Profile ────────────────────────────────────────
     SKILLS_FILE: Path = Path("config/skills_profile.json")
@@ -36,7 +33,7 @@ class Settings:
         if cls.SKILLS_FILE.exists():
             with open(cls.SKILLS_FILE) as f:
                 return json.load(f)
-        raise FileNotFoundError(f"Skills profile not found at {cls.SKILLS_FILE}. Please create it.")
+        raise FileNotFoundError(f"Skills profile not found at {cls.SKILLS_FILE}")
 
     @classmethod
     def validate(cls):
@@ -45,9 +42,7 @@ class Settings:
             errors.append("TELEGRAM_BOT_TOKEN is missing")
         if not cls.TELEGRAM_USER_ID:
             errors.append("TELEGRAM_USER_ID is missing")
-        if not cls.CLAUDE_API_KEY:
-            errors.append("CLAUDE_API_KEY is missing")
-        if not cls.APIFY_API_KEY:
-            errors.append("APIFY_API_KEY is missing")
+        if not cls.GEMINI_API_KEY:
+            errors.append("GEMINI_API_KEY is missing")
         if errors:
-            raise EnvironmentError("Missing required environment variables:\n" + "\n".join(f"  - {e}" for e in errors))
+            raise EnvironmentError("Missing required env vars:\n" + "\n".join(f"  - {e}" for e in errors))

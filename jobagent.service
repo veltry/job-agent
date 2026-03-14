@@ -1,5 +1,5 @@
 [Unit]
-Description=Job Agent - LinkedIn Job Notifier Bot
+Description=Job Agent v2.0 - LinkedIn Job Notifier
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,7 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/job-agent
 EnvironmentFile=/home/ubuntu/job-agent/.env
-ExecStart=/usr/bin/python3 agent.py
+ExecStart=/home/ubuntu/job-agent/venv/bin/python3 agent.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

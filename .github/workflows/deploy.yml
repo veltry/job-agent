@@ -1,23 +1,146 @@
-name: Deploy Job Agent to Oracle Cloud
+name: Job Agent CI/CD Pipeline
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.13"
 
 jobs:
-  deploy:
+
+  # ── Job 1: Run Tests ────────────────────────────────────────
+  test:
+    name: 🧪 Run Tests
     runs-on: ubuntu-latest
+
     steps:
-      - name: Deploy to Oracle VM via SSH
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Create test config
+        run: |
+          mkdir -p config storage logs
+          cp config/skills_profile.json config/skills_profile.json
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short
+        env:
+          TELEGRAM_BOT_TOKEN: test_token
+          TELEGRAM_USER_ID: "123456789"
+          GEMINI_API_KEY: test_key
+
+      - name: ✅ Tests passed
+        if: success()
+        run: echo "All tests passed!"
+
+      - name: ❌ Tests failed
+        if: failure()
+        run: echo "Tests failed! Deployment cancelled."
+
+  # ── Job 2: Deploy to VM ─────────────────────────────────────
+  deploy:
+    name: 🚀 Deploy to Oracle VM
+    runs-on: ubuntu-latest
+    needs: test  # Only runs if tests pass
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=$(date +'%Y%m%d-%H%M%S')-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Oracle VM
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ORACLE_VM_IP }}
           username: ubuntu
           key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
-            cd /home/ubuntu/job-agent
+            set -e
+
+            echo "🔄 Pulling latest code..."
+            cd ~/job-agent
+            git fetch origin main
+            git stash  # Save any local changes
             git pull origin main
-            pip3 install -r requirements.txt --quiet
+
+            echo "📦 Installing dependencies..."
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+
+            echo "🔁 Restarting service..."
             sudo systemctl restart jobagent
-            sudo systemctl status jobagent --no-pager
-            echo "✅ Deployment complete"
+
+            echo "⏳ Waiting for service to start..."
+            sleep 5
+
+            echo "✅ Checking service status..."
+            sudo systemctl is-active jobagent || exit 1
+
+            echo "✅ Deployment successful!"
+
+      - name: ✅ Notify Telegram - Success
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_USER_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ✅ *Deployment Successful!*
+
+            🔖 Version: `${{ steps.version.outputs.VERSION }}`
+            📝 Commit: ${{ github.event.head_commit.message }}
+            👤 By: ${{ github.actor }}
+            🕐 Time: ${{ github.event.head_commit.timestamp }}
+
+      - name: ❌ Notify Telegram - Failure + Rollback
+        if: failure()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_VM_IP }}
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            echo "⚠️ Deployment failed! Rolling back..."
+            cd ~/job-agent
+            git stash pop 2>/dev/null || true
+            git reset --hard HEAD~1
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            sudo systemctl restart jobagent
+            echo "🔄 Rollback complete!"
+
+      - name: ❌ Notify Telegram - Failure Message
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_USER_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            ❌ *Deployment FAILED & Rolled Back!*
+
+            🔖 Version: `${{ steps.version.outputs.VERSION }}`
+            📝 Commit: ${{ github.event.head_commit.message }}
+            👤 By: ${{ github.actor }}
+
+            ⚠️ Previous version restored automatically.
+            Please check the logs for details.

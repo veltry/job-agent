@@ -1,96 +1,137 @@
 """
-Skill Matcher - Uses Claude API to score job relevance against your skills profile.
-Returns a match score (0-100) and human-readable reasons.
+Skill Matcher v2 - Uses Gemini AI with retry logic and improved prompting.
+Model: gemini-2.0-flash-lite (free tier friendly)
 """
 
 import json
 import logging
-import anthropic
+import asyncio
+import os
+from google import genai
+from google.genai import types
 from typing import Tuple, List
 from config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIES = 3
+RETRY_DELAY = 30  # seconds
+
 
 class SkillMatcher:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=Settings.CLAUDE_API_KEY)
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.profile = Settings.get_skills_profile()
+        logger.info(f"🤖 Skill matcher ready (model: {Settings.GEMINI_MODEL})")
 
     async def score(self, job: dict) -> Tuple[int, List[str]]:
-        """
-        Score a job against the user's skills profile.
-        Returns (score: int, reasons: List[str])
-        """
-        try:
-            prompt = self._build_prompt(job)
-            response = self.client.messages.create(
-                model=Settings.CLAUDE_MODEL,
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}]
-            )
+        """Score job with retry logic for rate limits."""
+        await asyncio.sleep(Settings.RATE_LIMIT_SECONDS)
 
-            raw = response.content[0].text.strip()
-            return self._parse_response(raw)
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                prompt = self._build_prompt(job)
+                response = self.client.models.generate_content(
+                    model=Settings.GEMINI_MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        max_output_tokens=500,
+                    )
+                )
+                raw = response.text.strip()
+                return self._parse_response(raw)
 
-        except Exception as e:
-            logger.error(f"Scoring failed for job {job.get('id')}: {e}")
-            return 0, ["Scoring unavailable"]
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                    if attempt < MAX_RETRIES:
+                        wait = RETRY_DELAY * attempt
+                        logger.warning(f"  Rate limited. Waiting {wait}s (attempt {attempt}/{MAX_RETRIES})")
+                        await asyncio.sleep(wait)
+                        continue
+                    else:
+                        logger.error(f"  Rate limit exceeded after {MAX_RETRIES} attempts")
+                        return 0, ["Rate limit exceeded — will retry next scan"]
+                else:
+                    logger.error(f"  Scoring failed for {job.get('id')}: {e}")
+                    return 0, ["Scoring unavailable"]
+
+        return 0, ["Max retries reached"]
 
     def _build_prompt(self, job: dict) -> str:
         profile = self.profile
-        return f"""You are a job matching assistant. Score how well this job matches the candidate's profile.
+        skills_str = ", ".join(profile.get("skills", []))
+        roles_str = ", ".join(profile.get("preferred_roles", []))
+        locations_str = ", ".join(profile.get("preferred_locations", []))
 
-CANDIDATE PROFILE:
-- Title: {profile.get('title')}
-- Experience: {profile.get('experience_years')} years
-- Skills: {', '.join(profile.get('skills', []))}
-- Preferred Roles: {', '.join(profile.get('preferred_roles', []))}
-- Preferred Locations: {', '.join(profile.get('preferred_locations', []))}
-- Preferred Work Type: {', '.join(profile.get('preferred_work_type', []))}
-- Min Salary: {profile.get('salary_min_lpa')} LPA
-- Preferred Industries: {', '.join(profile.get('industries_preferred', []))}
-- Industries to Avoid: {', '.join(profile.get('industries_avoided', []))}
+        return f"""You are an expert job matching assistant. Carefully analyze this job against the candidate profile.
 
-JOB LISTING:
-- Title: {job.get('title')}
-- Company: {job.get('company')}
-- Location: {job.get('location')}
-- Type: {job.get('employment_type')}
-- Seniority: {job.get('seniority')}
-- Salary: {job.get('salary')}
-- Description: {job.get('description', '')[:1500]}
+=== CANDIDATE PROFILE ===
+Name: {profile.get('name')}
+Current Title: {profile.get('title')}
+Experience: {profile.get('experience_years')} years
+Technical Skills: {skills_str}
+Target Roles: {roles_str}
+Preferred Locations: {locations_str}
+Work Type: {', '.join(profile.get('preferred_work_type', []))}
+Min Salary: {profile.get('salary_min_lpa')} LPA
+Preferred Industries: {', '.join(profile.get('industries_preferred', []))}
+Avoid Industries: {', '.join(profile.get('industries_avoided', []))}
 
-INSTRUCTIONS:
-Respond ONLY with valid JSON in this exact format:
+=== JOB LISTING ===
+Title: {job.get('title')}
+Company: {job.get('company')}
+Location: {job.get('location')}
+Employment Type: {job.get('employment_type')}
+Salary: {job.get('salary')}
+Source: {job.get('source', 'Unknown')}
+Description:
+{job.get('description', '')[:1200]}
+
+=== INSTRUCTIONS ===
+Score this job from 0-100 based on:
+1. Skills match (40%) - Do required skills match candidate skills?
+2. Role match (25%) - Is this role aligned with target roles?
+3. Location match (20%) - Does location match preferences?
+4. Seniority match (15%) - Is experience level appropriate?
+
+Respond ONLY with valid JSON, no markdown, no extra text:
 {{
   "score": <integer 0-100>,
   "reasons": [
-    "<reason 1: skill or requirement that matches>",
-    "<reason 2>",
-    "<reason 3>"
+    "<specific skill or requirement that matches>",
+    "<another matching point>",
+    "<third matching point>"
   ],
   "concerns": [
-    "<concern 1: any mismatch or red flag>"
-  ]
-}}
-
-Score guidelines:
-- 90-100: Perfect match, all skills align, ideal role
-- 70-89: Strong match, most skills align
-- 50-69: Partial match, some skills align
-- Below 50: Poor match
-"""
+    "<specific mismatch or concern>"
+  ],
+  "summary": "<one sentence summary of fit>"
+}}"""
 
     def _parse_response(self, raw: str) -> Tuple[int, List[str]]:
         try:
-            # Strip markdown fences if present
             clean = raw.replace("```json", "").replace("```", "").strip()
+            # Find JSON object in response
+            start = clean.find("{")
+            end = clean.rfind("}") + 1
+            if start >= 0 and end > start:
+                clean = clean[start:end]
+
             data = json.loads(clean)
             score = max(0, min(100, int(data.get("score", 0))))
             reasons = data.get("reasons", [])
             concerns = data.get("concerns", [])
-            return score, reasons + [f"⚠️ {c}" for c in concerns]
+            summary = data.get("summary", "")
+
+            all_reasons = reasons.copy()
+            if summary:
+                all_reasons.append(f"💡 {summary}")
+            all_reasons += [f"⚠️ {c}" for c in concerns]
+
+            return score, all_reasons
+
         except Exception as e:
-            logger.warning(f"Failed to parse score response: {e}\nRaw: {raw}")
+            logger.warning(f"Failed to parse response: {e}\nRaw: {raw[:200]}")
             return 0, ["Could not parse match score"]
