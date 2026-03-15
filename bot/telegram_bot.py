@@ -42,18 +42,30 @@ class JobBot:
     # ── Security ──────────────────────────────────────────────
 
     def _is_authorized(self, update: Update) -> bool:
+        if update.effective_user is None:
+            logger.warning("⛔ Unauthorized access: missing effective_user")
+            return False
+
         user_id = update.effective_user.id
         if user_id != Settings.TELEGRAM_USER_ID:
             logger.warning(f"⛔ Unauthorized access from user_id={user_id}")
             return False
         return True
 
+    async def _reply(self, update: Update, text: str, **kwargs):
+        message = update.effective_message
+        if message is None:
+            logger.warning("Cannot reply: update has no effective_message")
+            return
+        await message.reply_text(text, **kwargs)
+
     # ── Commands ──────────────────────────────────────────────
 
     async def cmd_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._is_authorized(update):
             return
-        await update.message.reply_text(
+        await self._reply(
+            update,
             "👋 *Job Agent v2.0 is running!*\n\n"
             "I scan multiple job boards every few hours and notify you of matches.\n\n"
             "📋 *Sources:* Jobicy, Remotive\n"
@@ -70,7 +82,8 @@ class JobBot:
     async def cmd_help(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._is_authorized(update):
             return
-        await update.message.reply_text(
+        await self._reply(
+            update,
             "🤖 *Job Agent v2.0 Commands*\n\n"
             "/scan — Trigger immediate job scan\n"
             "/status — Application stats\n"
@@ -89,7 +102,8 @@ class JobBot:
         if not self._is_authorized(update):
             return
         stats = self.db.get_application_stats()
-        await update.message.reply_text(
+        await self._reply(
+            update,
             f"📊 *Application Stats*\n\n"
             f"📋 Total Applied: *{stats['total']}*\n"
             f"✅ Active: *{stats['applied']}*\n"
@@ -102,7 +116,8 @@ class JobBot:
         if not self._is_authorized(update):
             return
         stats = self.db.get_detailed_stats()
-        await update.message.reply_text(
+        await self._reply(
+            update,
             f"📈 *Detailed Statistics*\n\n"
             f"*Applications:*\n"
             f"  Total: {stats['total']}\n"
@@ -120,7 +135,7 @@ class JobBot:
             return
         apps = self.db.get_all_applications()
         if not apps:
-            await update.message.reply_text("No applications yet.")
+            await self._reply(update, "No applications yet.")
             return
 
         lines = ["📁 *Recent Applications*\n"]
@@ -132,12 +147,13 @@ class JobBot:
                 f"  📍 {a['location']} | 🎯 {a['score']}% | 📅 {dt}"
             )
 
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        await self._reply(update, "\n".join(lines), parse_mode="Markdown")
 
     async def cmd_scan(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._is_authorized(update):
             return
-        await update.message.reply_text(
+        await self._reply(
+            update,
             "🔍 *Running job scan now...*\n"
             "I'll notify you when I find matches!",
             parse_mode="Markdown"
@@ -146,6 +162,11 @@ class JobBot:
 
     async def _trigger_scan(self):
         from agent import run_job_scan
+
+        if self.scraper is None or self.matcher is None:
+            logger.error("Cannot run manual scan: scraper/matcher not initialized")
+            return
+
         await run_job_scan(self, self.scraper, self.matcher, self.db)
 
     # ── Job Card ──────────────────────────────────────────────
@@ -240,10 +261,18 @@ class JobBot:
 
     async def handle_callback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
+        if query is None:
+            logger.warning("Callback received without callback_query")
+            return
+
         await query.answer()
 
         if not self._is_authorized(update):
             await query.edit_message_text("⛔ Unauthorized.")
+            return
+
+        if not query.data:
+            await query.edit_message_text("⚠️ Invalid action.")
             return
 
         action, job_id = query.data.split(":", 1)
@@ -305,7 +334,8 @@ class JobBot:
     async def start(self):
         await self.app.initialize()
         await self.app.start()
-        await self.app.updater.start_polling(drop_pending_updates=True)
+        if self.app.updater is not None:
+            await self.app.updater.start_polling(drop_pending_updates=True)
         logger.info("🤖 Telegram bot started")
 
     async def idle(self):
@@ -314,6 +344,7 @@ class JobBot:
             while True:
                 await asyncio.sleep(3600)
         except (KeyboardInterrupt, SystemExit):
-            await self.app.updater.stop()
+            if self.app.updater is not None:
+                await self.app.updater.stop()
             await self.app.stop()
             await self.app.shutdown()

@@ -6,7 +6,7 @@ Apify free tier: ~100 results/month. Reliable, no ban risk.
 import logging
 import hashlib
 from typing import List, Dict
-from apify_client import ApifyClient
+from apify_client import ApifyClient  # type: ignore[reportMissingImports]
 from config.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,16 @@ class LinkedInScraper:
         }
 
         run = self.client.actor(Settings.APIFY_ACTOR_ID).call(run_input=run_input)
-        items = list(self.client.dataset(run["defaultDatasetId"]).iterate_items())
+        if not run:
+            logger.warning("  Apify actor run returned no result")
+            return []
+
+        dataset_id = run.get("defaultDatasetId")
+        if not dataset_id:
+            logger.warning("  Apify actor run missing defaultDatasetId")
+            return []
+
+        items = list(self.client.dataset(dataset_id).iterate_items())
 
         return [self._normalize(item) for item in items if item]
 

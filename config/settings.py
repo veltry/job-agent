@@ -19,6 +19,10 @@ class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = "gemini-2.0-flash-lite"
 
+    # ── Optional LinkedIn (Apify) ────────────────────────────
+    APIFY_API_KEY: str = os.getenv("APIFY_API_KEY", "")
+    APIFY_ACTOR_ID: str = os.getenv("APIFY_ACTOR_ID", "BHzefUZlZRKWxkTck")
+
     # ── Agent Behaviour ───────────────────────────────────────
     MATCH_THRESHOLD: int = int(os.getenv("MATCH_THRESHOLD", "70"))
     SCAN_INTERVAL_HOURS: int = int(os.getenv("SCAN_INTERVAL_HOURS", "4"))
