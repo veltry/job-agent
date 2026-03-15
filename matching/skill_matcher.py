@@ -39,7 +39,12 @@ class SkillMatcher:
                         max_output_tokens=500,
                     )
                 )
-                raw = response.text.strip()
+                response_text = response.text
+                if not response_text:
+                    logger.warning("  Gemini returned empty response text")
+                    return 0, ["Scoring unavailable"]
+
+                raw = response_text.strip()
                 return self._parse_response(raw)
 
             except Exception as e:
