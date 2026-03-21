@@ -18,6 +18,7 @@ SOURCE_EMOJI = {
     "Jobicy": "🟢",
     "Remotive": "🔵",
     "LinkedIn": "🔷",
+    "Jooble": "🟠",
     "Indeed": "🟡",
 }
 
@@ -37,6 +38,8 @@ class JobBot:
         self.app.add_handler(CommandHandler("scan", self.cmd_scan))
         self.app.add_handler(CommandHandler("help", self.cmd_help))
         self.app.add_handler(CommandHandler("stats", self.cmd_stats))
+        self.app.add_handler(CommandHandler("cover", self.cmd_cover))
+        self.app.add_handler(CommandHandler("email", self.cmd_email))
         self.app.add_handler(CallbackQueryHandler(self.handle_callback))
 
     # ── Security ──────────────────────────────────────────────
@@ -89,6 +92,8 @@ class JobBot:
             "/status — Application stats\n"
             "/history — Last 10 applications\n"
             "/stats — Detailed breakdown\n"
+            "/cover <job_id> — Generate cover letter\n"
+            "/email <job_id> <email> — Send cover letter + resume\n"
             "/help — This message\n\n"
             "*Job Card Buttons:*\n"
             "✅ Apply — Log & open job link\n"
@@ -125,7 +130,9 @@ class JobBot:
             f"  Avg score: {stats['avg_score']}%\n\n"
             f"*By Source:*\n"
             f"  🟢 Jobicy: {stats.get('jobicy', 0)}\n"
-            f"  🔵 Remotive: {stats.get('remotive', 0)}\n\n"
+            f"  🔵 Remotive: {stats.get('remotive', 0)}\n"
+            f"  🔷 LinkedIn: {stats.get('linkedin', 0)}\n"
+            f"  🟠 Jooble: {stats.get('jooble', 0)}\n\n"
             f"*Jobs Seen Total:* {stats['total_seen']}",
             parse_mode="Markdown"
         )
@@ -168,6 +175,155 @@ class JobBot:
             return
 
         await run_job_scan(self, self.scraper, self.matcher, self.db)
+
+    # ── Cover Letter & Email Commands ────────────────────────
+
+    async def cmd_cover(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Generate cover letter for a saved job."""
+        if not self._is_authorized(update):
+            return
+        
+        args = ctx.args
+        if not args:
+            await self._reply(
+                update,
+                "📝 *Generate Cover Letter*\n\n"
+                "Usage: /cover <job_id>\n\n"
+                "Find job_id from /history",
+                parse_mode="Markdown"
+            )
+            return
+        
+        job_id = args[0]
+        job = self.db.get_pending(job_id)
+        
+        if not job:
+            # Try to get from applications
+            apps = self.db.get_all_applications()
+            job = next((a for a in apps if a.get("job_id") == job_id), None)
+        
+        if not job:
+            await self._reply(update, "❌ Job not found. Use /history to see job IDs.")
+            return
+        
+        try:
+            from mailer.cover_letter import CoverLetterGenerator
+            profile = Settings.get_skills_profile()
+            generator = CoverLetterGenerator(profile)
+            cover_letter = generator.generate(job)
+            
+            # Save to file
+            from pathlib import Path
+            output_dir = Path("storage/cover_letters")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir / f"cover_letter_{job_id}.txt"
+            
+            with open(output_path, 'w') as f:
+                f.write(cover_letter)
+            
+            await self._reply(
+                update,
+                f"✅ *Cover Letter Generated!*\n\n"
+                f"📄 {job.get('title')} @ {job.get('company')}\n\n"
+                f"Saved to: `{output_path}`\n\n"
+                f"To send via email:\n"
+                f"/email {job_id} hr@company.com",
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error generating cover letter: {e}")
+            await self._reply(update, f"❌ Error: {str(e)}")
+
+    async def cmd_email(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Send cover letter + resume via email."""
+        if not self._is_authorized(update):
+            return
+        
+        args = ctx.args
+        if len(args) < 2:
+            await self._reply(
+                update,
+                "📧 *Send Application Email*\n\n"
+                "Usage: /email <job_id> <to_email>\n\n"
+                "Example: /email job_123 hr@company.com\n\n"
+                "Attaches cover letter + resume from config.",
+                parse_mode="Markdown"
+            )
+            return
+        
+        job_id = args[0]
+        to_email = args[1]
+        
+        job = self.db.get_pending(job_id)
+        if not job:
+            # Try applications
+            apps = self.db.get_all_applications()
+            job = next((a for a in apps if a.get("job_id") == job_id), None)
+        
+        if not job:
+            await self._reply(update, "❌ Job not found. Use /history to see job IDs.")
+            return
+        
+        await self._reply(
+            update,
+            f"📧 *Sending email...*\n\n"
+            f"To: {to_email}\n"
+            f"Job: {job.get('title')} @ {job.get('company')}",
+            parse_mode="Markdown"
+        )
+        
+        try:
+            from mailer.cover_letter import CoverLetterGenerator
+            from mailer.email_sender import create_email_sender
+            import os
+            
+            # Get profile and generate cover letter
+            profile = Settings.get_skills_profile()
+            generator = CoverLetterGenerator(profile)
+            cover_letter = generator.generate(job)
+            
+            # Create email sender from env
+            env_vars = {
+                "SMTP_HOST": os.getenv("SMTP_HOST", "smtp.gmail.com"),
+                "SMTP_PORT": os.getenv("SMTP_PORT", "587"),
+                "SMTP_USER": os.getenv("SMTP_USER", ""),
+                "SMTP_PASSWORD": os.getenv("SMTP_PASSWORD", ""),
+                "FROM_EMAIL": os.getenv("FROM_EMAIL", os.getenv("SMTP_USER", "")),
+            }
+            
+            email_sender = create_email_sender(env_vars)
+            
+            # Get resume path
+            resume_path = Path("config/resume.pdf")
+            
+            # Send email
+            success = email_sender.send_with_cover_letter(
+                to_email=to_email,
+                job=job,
+                cover_letter=cover_letter,
+                resume_path=resume_path if resume_path.exists() else None
+            )
+            
+            if success:
+                await self._reply(
+                    update,
+                    f"✅ *Email Sent Successfully!*\n\n"
+                    f"To: {to_email}\n"
+                    f"Job: {job.get('title')} @ {job.get('company')}",
+                    parse_mode="Markdown"
+                )
+            else:
+                await self._reply(
+                    update,
+                    "❌ *Failed to send email.*\n\n"
+                    "Check SMTP settings in .env",
+                    parse_mode="Markdown"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error sending email: {e}")
+            await self._reply(update, f"❌ Error: {str(e)}")
 
     # ── Job Card ──────────────────────────────────────────────
 

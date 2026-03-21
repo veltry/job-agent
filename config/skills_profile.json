@@ -1,29 +1,68 @@
 {
-  "name": "Velmurugan",
-  "title": "Senior Java Developer",
+  "name": "VELMURUGAN P",
+  "title": "VP, Chapter Lead - Backend Engineering",
+  "current_company": "Standard Chartered Bank",
   "experience_years": 17,
   "skills": [
-    "Java", "Java EE", "Spring Boot", "Apache Struts",
-    "JSP", "MS SQL Server", "Azure DevOps", "GitHub",
-    "REST APIs", "Microservices", "CI/CD", "Maven", "Git"
+    "Java/J2EE",
+    "Spring Boot",
+    "RESTful APIs",
+    "webMethods (IS, MWS, Broker)",
+    "IBM MQ",
+    "AWS (Certified Cloud Practitioner)",
+    "Oracle",
+    "PostgreSQL",
+    "Microservices",
+    "API Development",
+    "DevOps",
+    "Agile/Scrum"
   ],
   "preferred_roles": [
-    "Java Developer", "Senior Java Developer",
-    "Backend Developer", "Full Stack Java Developer",
-    "Software Engineer", "Java Backend Engineer"
+    "VP Chapter Lead",
+    "Backend Lead",
+    "Development Head",
+    "Engineering Lead",
+    "Senior Backend Engineer",
+    "Architecture Lead"
   ],
   "preferred_locations": [
-    "Kuala Lumpur", "Malaysia", "Remote", "Hybrid", "Petaling Jaya"
+    "Malaysia",
+    "Singapore",
+    "Kuala Lumpur",
+    "Remote",
+    "Hybrid"
   ],
-  "preferred_work_type": ["Full-time", "Hybrid", "Remote"],
-  "salary_min_lpa": 8,
-  "industries_preferred": ["IT Services", "Product", "Fintech", "Healthcare IT"],
-  "industries_avoided": ["Gaming", "Gambling"],
+  "preferred_work_type": [
+    "Full-time",
+    "Hybrid",
+    "Remote"
+  ],
+  "salary_min_lpa": 36,
+  "salary_currency": "MYR",
+  "notice_period": "2 months",
+  "industries_preferred": [
+    "Banking",
+    "Insurance",
+    "Financial Services",
+    "FinTech"
+  ],
+  "industries_avoided": [
+    "Gaming",
+    "Gambling"
+  ],
   "job_search_keywords": [
-    "Java developer",
-    "Spring Boot developer",
-    "Java backend engineer",
-    "Senior software engineer Java",
-    "Java full stack developer"
+    "VP Chapter Lead backend Malaysia",
+    "Engineering Lead banking Singapore",
+    "Backend Lead Java AWS",
+    "Chapter Lead fintech",
+    "Development Head banking",
+    "Senior Java Engineer Lead"
+  ],
+  "linkedin_url": "https://www.linkedin.com/in/veltry",
+  "certifications": [
+    "AWS Certified Cloud Practitioner",
+    "Certified ScrumMaster (CSM)",
+    "REST API (HackerRank)",
+    "Gen AI (Skillsoft)"
   ]
 }
