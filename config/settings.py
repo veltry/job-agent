@@ -23,6 +23,16 @@ class Settings:
     APIFY_API_KEY: str = os.getenv("APIFY_API_KEY", "")
     APIFY_ACTOR_ID: str = os.getenv("APIFY_ACTOR_ID", "BHzefUZlZRKWxkTck")
 
+    # ── Jooble API (for Asia jobs) ───────────────────────────
+    JOOBLE_API_KEY: str = os.getenv("JOOBLE_API_KEY", "")
+
+    # ── Email (Gmail SMTP) ──────────────────────────────────
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "")
+
     # ── Agent Behaviour ───────────────────────────────────────
     MATCH_THRESHOLD: int = int(os.getenv("MATCH_THRESHOLD", "70"))
     SCAN_INTERVAL_HOURS: int = int(os.getenv("SCAN_INTERVAL_HOURS", "4"))

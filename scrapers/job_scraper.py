@@ -2,6 +2,7 @@
 Job Scraper v2 - Fetches from multiple free sources:
   1. Jobicy API  - Remote tech jobs
   2. Remotive API - Remote jobs
+  3. Jooble API  - General job listings (good for Asia)
 """
 
 import logging
@@ -32,6 +33,11 @@ class JobScraper:
         remotive_jobs = await self._fetch_remotive()
         all_jobs.extend(remotive_jobs)
         logger.info(f"📌 Remotive: {len(remotive_jobs)} jobs")
+
+        # Source 3: Jooble (if API key available)
+        jooble_jobs = await self._fetch_jooble()
+        all_jobs.extend(jooble_jobs)
+        logger.info(f"📌 Jooble: {len(jooble_jobs)} jobs")
 
         # Deduplicate by ID
         seen_ids = set()
@@ -123,4 +129,74 @@ class JobScraper:
             except Exception as e:
                 logger.error(f"  Remotive failed for '{keyword}': {e}")
 
+        return all_jobs
+
+    # ── Source 3: Jooble ──────────────────────────────────────
+
+    async def _fetch_jooble(self) -> List[Dict]:
+        """
+        Fetch jobs from Jooble API.
+        Jooble is a job aggregator with good coverage for Asia/Malaysia/Singapore.
+        Free API key required: https://www.jooble.org/api
+        """
+        jooble_api_key = getattr(Settings, 'JOOBLE_API_KEY', '') or ''
+        
+        if not jooble_api_key:
+            logger.info("  Jooble: No API key configured, skipping")
+            return []
+        
+        keywords = self.profile.get("job_search_keywords", ["Java Developer"])
+        locations = self.profile.get("preferred_locations", ["Malaysia", "Singapore"])
+        all_jobs = []
+
+        for keyword in keywords[:2]:  # Limit to 2 keywords
+            for location in locations[:2]:  # Limit to 2 locations
+                try:
+                    # Jooble API endpoint
+                    url = "https://jooble.org/api/" + jooble_api_key
+                    
+                    payload = json.dumps({
+                        "keywords": keyword,
+                        "location": location,
+                        "pageSize": 20
+                    })
+                    
+                    req = urllib.request.Request(
+                        url,
+                        data=payload.encode('utf-8'),
+                        headers={
+                            "Content-Type": "application/json",
+                            "User-Agent": "Mozilla/5.0"
+                        },
+                        method="POST"
+                    )
+                    
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        data = json.loads(resp.read())
+                    
+                    jooble_jobs = data.get("jobs", [])
+                    
+                    for item in jooble_jobs:
+                        job_id = "jooble_" + hashlib.md5(
+                            str(item.get("id", "")).encode()
+                        ).hexdigest()[:10]
+                        
+                        all_jobs.append({
+                            "id": job_id,
+                            "source": "Jooble",
+                            "title": item.get("title", ""),
+                            "company": item.get("company", ""),
+                            "location": item.get("location", location),
+                            "description": item.get("snippet", "")[:1500],
+                            "apply_url": item.get("link", ""),
+                            "posted_at": item.get("updated", ""),
+                            "employment_type": item.get("type", "Full-time"),
+                            "salary": item.get("salary", "Not disclosed") or "Not disclosed",
+                        })
+                    
+                    logger.info(f"  Jooble '{keyword}' in '{location}': {len(jooble_jobs)} jobs")
+                    
+                except Exception as e:
+                    logger.error(f"  Jooble failed for '{keyword}' in '{location}': {e}")
+        
         return all_jobs
