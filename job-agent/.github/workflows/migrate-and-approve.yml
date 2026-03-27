@@ -1,0 +1,61 @@
+name: "Migrate & Manual-Approve Deploy"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/*
+
+jobs:
+  run-migrations:
+    name: Run migrations on velprod (requires self-hosted runner)
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload SSH key (uses runner ssh key already present)
+        run: |
+          echo "Assumes runner has SSH access to velprod using ~/.ssh/oracle_vm_key"
+
+      - name: Run migration script on velprod
+        env:
+          REMOTE_HOST: 149.118.137.207
+          REMOTE_USER: ubuntu
+          SSH_KEY: ~/.ssh/oracle_vm_key
+        run: |
+          chmod +x .github/scripts/run_migrations.sh
+          .github/scripts/run_migrations.sh "$REMOTE_USER" "$REMOTE_HOST" "$SSH_KEY"
+
+      - name: Upload migration log
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-log
+          path: migration.log
+
+  wait-for-approval:
+    name: Manual approval before restart
+    needs: run-migrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Await approval
+        uses: peter-evans/environment-approval@v1
+        with:
+          environment: 'production'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  restart-service:
+    name: Restart job-agent service (post-approval)
+    needs: wait-for-approval
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restart service on velprod
+        env:
+          REMOTE_HOST: 149.118.137.207
+          REMOTE_USER: ubuntu
+          SSH_KEY: ~/.ssh/oracle_vm_key
+        run: |
+          ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $REMOTE_USER@$REMOTE_HOST 'sudo systemctl daemon-reload && sudo systemctl restart jobagent.service && sudo systemctl status jobagent.service --no-pager'
