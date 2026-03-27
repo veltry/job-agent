@@ -18,6 +18,22 @@ if repo_root not in sys.path:
 from bot.addjob_handler import preview_from_text, approve_pending_job, payload_to_json
 import sqlite3
 
+from bot.pending_command import list_pending
+from pathlib import Path
+
+# Minimal runtime integration: add /pending and simple text handler simulation.
+def handle_pending_command(requester_id):
+    rows = list_pending(10)
+    lines = []
+    for r in rows:
+        lines.append(f"{r['id']}: {r['title']} @ {r['company']} ({r['location']})")
+    return "\n".join(lines) if lines else "No pending jobs."
+
+def handle_incoming_text(text, requester_id=5073528651):
+    # Use preview flow and simulate sending to user
+    payload = preview_from_text(text, requester_id)
+    return payload
+
 
 class SqliteExecutor:
     """Simple sqlite3-based executor for testing approve flow locally."""
