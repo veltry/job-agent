@@ -1,7 +1,10 @@
 import sqlite3
 from typing import List
 
-DB_PATH = 'data/jobs.db'
+import os
+THIS_DIR = os.path.dirname(__file__)
+DB_PATH = os.path.join(THIS_DIR, '..', 'data', 'jobs.db')
+DB_PATH = os.path.abspath(DB_PATH)
 
 def list_pending(limit: int = 10) -> List[dict]:
     conn = sqlite3.connect(DB_PATH)
