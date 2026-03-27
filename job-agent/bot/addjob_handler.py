@@ -34,7 +34,15 @@ def preview_from_text(text: str, requester_id: Optional[int] = None) -> Dict:
 
     This function is safe to call in the bot process.
     """
-    parsed = extract_job_from_text(text)
+    # Some Telegram forwards or pasted messages start with a leading slash
+    # (e.g. "/ forwarded posting ...") which the bot may interpret as a
+    # command. If the text starts with '/' and contains a space, treat it as
+    # plain text by stripping the leading slash.
+    txt = text
+    if isinstance(txt, str) and txt.startswith('/') and ' ' in txt:
+        txt = txt.lstrip('/') .strip()
+
+    parsed = extract_job_from_text(txt)
     # Build preview text
     lines = []
     def add(k, v):
